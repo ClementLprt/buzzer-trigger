@@ -13,29 +13,22 @@ struct WiringView: View {
                     Bullet("Cherche la paire qui bipe seulement quand on appuie (souvent 2 et 3, parfois 1 et 2).")
                     Bullet("Si elle bipe au repos et coupe à l'appui (contact fermé au repos), coche « Inverser » dans Détection.")
                     Bullet("S'il y a une LED ou de l'électronique dans le bouton, il faut un contact sec (simple interrupteur).")
-                    Bullet("Le contact a deux fils : c'est eux qu'on relie aux deux XLR du boîtier (voir ci-dessous).")
                 }
-                TutoSection(title: "2. Le boîtier buzzer : deux embases XLR") {
-                    Para("Le buzzer sort sur deux XLR, ce qui permet de rallonger avec des câbles micro standard.")
-                    Bullet("ALLER = XLR femelle (reçoit le signal de la carte son, comme une entrée).")
-                    Bullet("RETOUR = XLR mâle (renvoie vers la carte son, comme un micro).")
-                    Bullet("ALLER broche 2 → un fil du contact. Autre fil du contact → RETOUR broche 2.")
-                    Bullet("RETOUR broche 3 reliée à RETOUR broche 1. Broche 1 ALLER reliée à broche 1 RETOUR (masse).")
-                    Bullet("ALLER broche 3 : rien. Ne jamais relier la broche 3 de l'ALLER au RETOUR, sinon le signal passe en permanence.")
-                    WiringDiagram().frame(height: 250)
+                TutoSection(title: "2. Câblage avec un seul câble XLR (conseillé)") {
+                    Para("Broche 2 = aller du signal, broche 3 = retour, broche 1 = masse. Côté régie, un petit câble en Y à souder :")
+                    WiringDiagram().frame(height: 230)
+                    Bullet("Côté sortie : jack 6,35 mono (TS). Sur l'UMC1820, les sorties 3 à 10 sont en jack. Prends une sortie reliée à aucun ampli.")
+                    Bullet("Côté entrée : jack 6,35 mono dans la partie jack d'un combo XLR/jack. Si tu passes par la partie XLR, coupe le 48 V.")
+                    Bullet("Si le contact du buzzer n'est pas sur 2 et 3, adapte le Y (ou ressoude la prise du buzzer en 2-3).")
                 }
-                TutoSection(title: "3. Branchement en régie") {
-                    Bullet("Sortie de la carte son (jack) → câble jack / XLR mâle → rallonges XLR → ALLER du buzzer.")
-                    Bullet("RETOUR du buzzer → rallonges XLR → entrée XLR de la carte son.")
-                    Bullet("48 V IMPÉRATIVEMENT COUPÉ sur cette entrée : sinon la tension remonte par le contact jusqu'à la sortie de la carte.")
-                    Bullet("Scarlett 2i2 : Line Out 2 et Input 2. Débrancher casque et enceintes de monitoring (les sorties 1-2 y sont reliées).")
-                    Bullet("UMC1820 (conseillé pour le show) : une sortie libre entre 3 et 10, et une entrée XLR libre.")
+                TutoSection(title: "3. Variante avec deux câbles") {
+                    Para("Sans souder de Y : un câble de la sortie jusqu'à une borne du buzzer, un autre de l'autre borne jusqu'à l'entrée, masses reliées. Il faut juste un adaptateur côté buzzer.")
                 }
                 TutoSection(title: "4. Réglages dans l'appli") {
                     Bullet("Gain de l'entrée au minimum pour commencer : le signal est déjà fort.")
                     Bullet("Choisis la sortie et son canal, l'entrée et son canal, puis Démarrer. Au premier lancement, macOS demande l'accès au micro : accepte (c'est l'entrée de la carte son).")
                     Bullet("« Mesurer au repos » sans toucher au buzzer, puis « Mesurer en appuyant » en tenant le bouton 3 secondes. Le seuil se règle tout seul au milieu.")
-                    Bullet("L'écart doit faire au moins 20 dB. Si l'appui sature (proche de 0 dB), baisse le gain. Si le repos est trop haut (diaphonie sur un câble très long), baisse la fréquence à 200 Hz et vérifie que la broche 3 de l'ALLER n'est reliée à rien.")
+                    Bullet("L'écart doit faire au moins 20 dB. Si l'appui sature (proche de 0 dB), baisse le gain. Si le repos est trop haut (diaphonie sur un câble très long), baisse la fréquence à 200 Hz ou passe à deux câbles.")
                 }
                 TutoSection(title: "5. MIDI") {
                     Para("Par défaut l'appli crée son propre port MIDI « Buzzer Trigger » : rien à configurer dans Configuration audio et MIDI. QLab et grandMA3 le voient comme une entrée tant que l'appli est ouverte. Lance donc Buzzer Trigger avant QLab et grandMA3.")
@@ -95,7 +88,7 @@ private struct Bullet: View {
     }
 }
 
-/// Schéma : carte son -> rallonges -> boîtier buzzer à deux XLR -> rallonges -> carte son.
+/// Schéma du câble en Y : jack sortie et jack entrée vers une XLR femelle, puis le buzzer.
 struct WiringDiagram: View {
     var body: some View {
         Canvas { ctx, size in
@@ -103,39 +96,30 @@ struct WiringDiagram: View {
                 ctx.stroke(Path(roundedRect: r, cornerRadius: 8), with: .color(color), lineWidth: 2)
                 ctx.draw(Text(title).font(.system(size: 12, weight: .semibold)), at: CGPoint(x: r.midX, y: r.midY))
             }
-            func line(_ a: CGPoint, _ b: CGPoint, _ color: Color, _ w: CGFloat = 3) {
+            func line(_ a: CGPoint, _ b: CGPoint, _ color: Color, _ w: CGFloat = 3, dash: [CGFloat] = []) {
                 var p = Path(); p.move(to: a); p.addLine(to: b)
-                ctx.stroke(p, with: .color(color), style: StrokeStyle(lineWidth: w))
+                ctx.stroke(p, with: .color(color), style: StrokeStyle(lineWidth: w, dash: dash))
             }
             func label(_ s: String, _ at: CGPoint) {
                 ctx.draw(Text(s).font(.system(size: 11)).foregroundColor(.secondary), at: at)
             }
-            let out = CGRect(x: 10, y: 20, width: 200, height: 50)
-            let inp = CGRect(x: 10, y: 170, width: 200, height: 50)
-            let bx = size.width - 260
-            let buzzer = CGRect(x: bx, y: 10, width: 250, height: 220)
-            let aller = CGRect(x: bx + 15, y: 25, width: 120, height: 40)
-            let retour = CGRect(x: bx + 15, y: 175, width: 120, height: 40)
-            ctx.stroke(Path(roundedRect: buzzer, cornerRadius: 12), with: .color(.orange), style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
-            ctx.draw(Text("BOÎTIER BUZZER").font(.system(size: 11, weight: .bold)).foregroundColor(.orange), at: CGPoint(x: bx + 195, y: 22))
-            box(out, "Carte son : SORTIE (jack)", .blue)
-            box(inp, "Carte son : ENTRÉE XLR\n48 V COUPÉ", .green)
-            box(aller, "ALLER\nXLR femelle", .blue)
-            box(retour, "RETOUR\nXLR mâle", .green)
-            line(CGPoint(x: out.maxX, y: out.midY), CGPoint(x: aller.minX, y: aller.midY), .blue)
-            label("câble jack/XLR M + rallonges XLR", CGPoint(x: (out.maxX + aller.minX) / 2, y: out.midY - 12))
-            line(CGPoint(x: retour.minX, y: retour.midY), CGPoint(x: inp.maxX, y: inp.midY), .green)
-            label("rallonges XLR", CGPoint(x: (inp.maxX + retour.minX) / 2, y: inp.midY - 12))
-            // contact
-            let cx = bx + 75
-            line(CGPoint(x: cx, y: aller.maxY), CGPoint(x: cx, y: 105), .primary, 2)
-            line(CGPoint(x: cx, y: 105), CGPoint(x: cx + 22, y: 122), .primary, 2)
-            line(CGPoint(x: cx, y: 128), CGPoint(x: cx, y: retour.minY), .primary, 2)
-            label("broche 2", CGPoint(x: cx - 32, y: aller.maxY + 12))
-            label("contact du bouton", CGPoint(x: cx + 80, y: 116))
-            label("broche 2", CGPoint(x: cx - 32, y: retour.minY - 12))
-            label("RETOUR 3 → 1", CGPoint(x: cx + 105, y: retour.midY))
-            label("masses : 1 ↔ 1", CGPoint(x: cx + 105, y: 150))
+            let out = CGRect(x: 10, y: 20, width: 190, height: 50)
+            let inp = CGRect(x: 10, y: 150, width: 190, height: 50)
+            let xlr = CGRect(x: 320, y: 75, width: 150, height: 70)
+            let buz = CGRect(x: size.width - 170, y: 75, width: 160, height: 70)
+            box(out, "Carte son : SORTIE\njack mono (TS)", .blue)
+            box(inp, "Carte son : ENTRÉE\njack mono, 48 V coupé", .green)
+            box(xlr, "XLR femelle\n(fin du Y)", .primary)
+            box(buz, "BUZZER\ncontact 2 ↔ 3", .orange)
+            line(CGPoint(x: out.maxX, y: out.midY - 8), CGPoint(x: xlr.minX, y: xlr.minY + 15), .blue)
+            label("pointe → broche 2", CGPoint(x: 262, y: 38))
+            line(CGPoint(x: inp.maxX, y: inp.midY + 8), CGPoint(x: xlr.minX, y: xlr.maxY - 15), .green)
+            label("pointe → broche 3", CGPoint(x: 262, y: 190))
+            line(CGPoint(x: out.maxX, y: out.midY + 10), CGPoint(x: xlr.minX, y: xlr.midY), .gray, 2, dash: [5, 4])
+            line(CGPoint(x: inp.maxX, y: inp.midY - 10), CGPoint(x: xlr.minX, y: xlr.midY), .gray, 2, dash: [5, 4])
+            label("corps des 2 jacks → broche 1", CGPoint(x: 262, y: 112))
+            line(CGPoint(x: xlr.maxX, y: xlr.midY), CGPoint(x: buz.minX, y: buz.midY), .primary, 5)
+            label("câble XLR micro (longueur au choix)", CGPoint(x: (xlr.maxX + buz.minX) / 2, y: xlr.midY - 14))
         }
     }
 }
