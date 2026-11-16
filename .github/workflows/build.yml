@@ -1,0 +1,31 @@
+name: Build Buzzer Trigger
+on:
+  push:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compiler l'appli
+        run: |
+          bash build.sh
+      - name: Fabriquer le DMG
+        run: |
+          mkdir -p dmg
+          cp -R "dist/Buzzer Trigger.app" dmg/
+          ln -s /Applications dmg/Applications
+          hdiutil create -volname "Buzzer Trigger" -srcfolder dmg -ov -format UDZO "dist/Buzzer-Trigger.dmg"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Buzzer-Trigger
+          path: dist/Buzzer-Trigger.dmg
+      - name: Publier en téléchargement
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Buzzer Trigger
+          files: dist/Buzzer-Trigger.dmg
