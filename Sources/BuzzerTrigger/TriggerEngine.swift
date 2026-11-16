@@ -68,6 +68,26 @@ final class TriggerEngine: ObservableObject {
         loading = false
         refreshDevices()
         if !midi.ready { addLog("Erreur : impossible de créer le port MIDI virtuel") }
+        watchDeviceChanges()
+    }
+
+    /// Met à jour la liste dès qu'une carte son est branchée ou débranchée.
+    private func watchDeviceChanges() {
+        var addr = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDevices,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain)
+        AudioObjectAddPropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &addr, DispatchQueue.main) { [weak self] _, _ in
+            guard let self = self else { return }
+            let before = Set(self.devices.map { $0.uid })
+            self.refreshDevices()
+            let after = self.devices
+            for d in after where !before.contains(d.uid) { self.addLog("Branché : \(d.name)") }
+            let afterUIDs = Set(after.map { $0.uid })
+            if self.running && (!afterUIDs.contains(self.outUID) || !afterUIDs.contains(self.inUID)) {
+                self.addLog("ATTENTION : la carte son utilisée a été débranchée")
+            }
+        }
     }
 
     // MARK: réglages
@@ -119,6 +139,7 @@ final class TriggerEngine: ObservableObject {
     func refreshDevices() {
         devices = AudioDevices.all()
         midiDestinations = MIDIOut.destinations()
+        addLog("Cartes son vues : " + devices.map { "\($0.name) (\($0.inputChannels) ent./\($0.outputChannels) sort.)" }.joined(separator: ", "))
         if outUID.isEmpty, let d = devices.first(where: { $0.outputChannels > 2 }) ?? devices.first(where: { $0.outputChannels > 0 }) { outUID = d.uid }
         if inUID.isEmpty, let d = devices.first(where: { $0.uid == outUID && $0.inputChannels > 0 }) ?? devices.first(where: { $0.inputChannels > 0 }) { inUID = d.uid }
     }
