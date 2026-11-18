@@ -147,7 +147,7 @@ struct MIDISettings: View {
 
     var body: some View {
         Form {
-            Picker("Sortie MIDI", selection: $e.midiDestination) {
+            Picker("Sortie MIDI (QLab, MA)", selection: $e.midiDestination) {
                 Text("Port virtuel « Buzzer Trigger »").tag(Int32(0))
                 ForEach(e.midiDestinations) { d in Text(d.name).tag(d.id) }
             }
@@ -157,6 +157,13 @@ struct MIDISettings: View {
             Toggle("grandMA3", isOn: $e.maOn)
             Stepper(value: $e.maChannel, in: 1...16) { Text("  canal \(e.maChannel)") }
             Stepper(value: $e.maNote, in: 0...127) { Text("  note \(e.maNote)") }
+            Toggle("Laser (PC QuickShow)", isOn: $e.laserOn)
+            Picker("  sortie laser", selection: $e.laserDestination) {
+                Text("Port virtuel « Buzzer Trigger »").tag(Int32(0))
+                ForEach(e.midiDestinations) { d in Text(d.name).tag(d.id) }
+            }
+            Stepper(value: $e.laserChannel, in: 1...16) { Text("  canal \(e.laserChannel)") }
+            Stepper(value: $e.laserNote, in: 0...127) { Text("  note \(e.laserNote)") }
             Button("Envoyer un test MIDI") { e.sendTest() }
         }
     }

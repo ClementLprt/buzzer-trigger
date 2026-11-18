@@ -38,6 +38,10 @@ final class TriggerEngine: ObservableObject {
     @Published var maOn = true { didSet { save() } }
     @Published var maChannel = 2 { didSet { save() } }
     @Published var maNote = 60 { didSet { save() } }
+    @Published var laserOn = false { didSet { save() } }
+    @Published var laserChannel = 3 { didSet { save() } }
+    @Published var laserNote = 60 { didSet { save() } }
+    @Published var laserDestination: Int32 = 0 { didSet { save() } }
 
     // MARK: copies lues par les threads audio
     private var rtOutCh = 2
@@ -100,6 +104,8 @@ final class TriggerEngine: ObservableObject {
             "hysteresis": hysteresis, "holdMs": holdMs, "lockSeconds": lockSeconds, "invert": invert,
             "midiDestination": Int(midiDestination), "qlabOn": qlabOn, "qlabChannel": qlabChannel,
             "qlabNote": qlabNote, "maOn": maOn, "maChannel": maChannel, "maNote": maNote,
+            "laserOn": laserOn, "laserChannel": laserChannel, "laserNote": laserNote,
+            "laserDestination": Int(laserDestination),
         ]
         defaults.set(d, forKey: "settings.v1")
     }
@@ -125,6 +131,10 @@ final class TriggerEngine: ObservableObject {
         maOn = d["maOn"] as? Bool ?? true
         maChannel = d["maChannel"] as? Int ?? 2
         maNote = d["maNote"] as? Int ?? 60
+        laserOn = d["laserOn"] as? Bool ?? false
+        laserChannel = d["laserChannel"] as? Int ?? 3
+        laserNote = d["laserNote"] as? Int ?? 60
+        laserDestination = Int32(d["laserDestination"] as? Int ?? 0)
     }
 
     // MARK: journal
@@ -339,35 +349,39 @@ final class TriggerEngine: ObservableObject {
             addLog("Appui ignoré (\(locked ? "verrou en cours" : "désarmé"))")
             return
         }
-        var parts: [String] = []
-        let dest = midiDestination
-        if qlabOn {
-            let ok = midi.note(channel: qlabChannel, note: qlabNote, on: true, destination: dest)
-            parts.append("QLab can.\(qlabChannel) note \(qlabNote)\(ok ? "" : " ÉCHEC")")
-        }
-        if maOn {
-            let ok = midi.note(channel: maChannel, note: maNote, on: true, destination: dest)
-            parts.append("MA can.\(maChannel) note \(maNote)\(ok ? "" : " ÉCHEC")")
-        }
-        let q = (qlabOn, qlabChannel, qlabNote, maOn, maChannel, maNote)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            if q.0 { _ = self.midi.note(channel: q.1, note: q.2, on: false, destination: dest) }
-            if q.3 { _ = self.midi.note(channel: q.4, note: q.5, on: false, destination: dest) }
-        }
+        let parts = sendAll()
         lastTrigger = Date()
         addLog("DÉCLENCHÉ (\(source)) : " + (parts.isEmpty ? "aucune sortie MIDI cochée" : parts.joined(separator: ", ")))
         beginLock()
     }
 
-    func sendTest() {
-        let dest = midiDestination
-        if qlabOn { _ = midi.note(channel: qlabChannel, note: qlabNote, on: true, destination: dest) }
-        if maOn { _ = midi.note(channel: maChannel, note: maNote, on: true, destination: dest) }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            if self.qlabOn { _ = self.midi.note(channel: self.qlabChannel, note: self.qlabNote, on: false, destination: dest) }
-            if self.maOn { _ = self.midi.note(channel: self.maChannel, note: self.maNote, on: false, destination: dest) }
+    /// Une sortie MIDI : (libellé, canal, note, destination).
+    private func targets() -> [(String, Int, Int, Int32)] {
+        var t: [(String, Int, Int, Int32)] = []
+        if qlabOn { t.append(("QLab", qlabChannel, qlabNote, midiDestination)) }
+        if maOn { t.append(("MA", maChannel, maNote, midiDestination)) }
+        if laserOn { t.append(("Laser", laserChannel, laserNote, laserDestination)) }
+        return t
+    }
+
+    /// Envoie Note On à chaque sortie cochée, puis Note Off 150 ms après.
+    @discardableResult
+    private func sendAll() -> [String] {
+        let t = targets()
+        var parts: [String] = []
+        for (label, ch, n, dest) in t {
+            let ok = midi.note(channel: ch, note: n, on: true, destination: dest)
+            parts.append("\(label) can.\(ch) note \(n)\(ok ? "" : " ÉCHEC")")
         }
-        addLog("Test MIDI envoyé (sans verrou)")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            for (_, ch, n, dest) in t { _ = self.midi.note(channel: ch, note: n, on: false, destination: dest) }
+        }
+        return parts
+    }
+
+    func sendTest() {
+        let parts = sendAll()
+        addLog("Test MIDI envoyé (sans verrou) : " + (parts.isEmpty ? "aucune sortie cochée" : parts.joined(separator: ", ")))
     }
 
     private func beginLock() {
