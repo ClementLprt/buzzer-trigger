@@ -42,6 +42,7 @@ final class TriggerEngine: ObservableObject {
     @Published var laserChannel = 3 { didSet { save() } }
     @Published var laserNote = 60 { didSet { save() } }
     @Published var laserDestination: Int32 = 0 { didSet { save() } }
+    @Published var panicNote = 127 { didSet { save() } }
 
     // MARK: copies lues par les threads audio
     private var rtOutCh = 2
@@ -105,7 +106,7 @@ final class TriggerEngine: ObservableObject {
             "midiDestination": Int(midiDestination), "qlabOn": qlabOn, "qlabChannel": qlabChannel,
             "qlabNote": qlabNote, "maOn": maOn, "maChannel": maChannel, "maNote": maNote,
             "laserOn": laserOn, "laserChannel": laserChannel, "laserNote": laserNote,
-            "laserDestination": Int(laserDestination),
+            "laserDestination": Int(laserDestination), "panicNote": panicNote,
         ]
         defaults.set(d, forKey: "settings.v1")
     }
@@ -135,6 +136,7 @@ final class TriggerEngine: ObservableObject {
         laserChannel = d["laserChannel"] as? Int ?? 3
         laserNote = d["laserNote"] as? Int ?? 60
         laserDestination = Int32(d["laserDestination"] as? Int ?? 0)
+        panicNote = d["panicNote"] as? Int ?? 127
     }
 
     // MARK: journal
@@ -377,6 +379,27 @@ final class TriggerEngine: ObservableObject {
             for (_, ch, n, dest) in t { _ = self.midi.note(channel: ch, note: n, on: false, destination: dest) }
         }
         return parts
+    }
+
+    /// PANIC : désarme, coupe le verrou, envoie la note panic + All Notes Off à chaque sortie cochée.
+    func panic() {
+        setArmed(false)
+        endLock(rearm: false)
+        let t = targets()
+        let note = panicNote
+        var parts: [String] = []
+        for (label, ch, _, dest) in t {
+            let ok = midi.note(channel: ch, note: note, on: true, destination: dest)
+            parts.append("\(label) can.\(ch) note \(note)\(ok ? "" : " ÉCHEC")")
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            for (_, ch, _, dest) in t {
+                _ = self.midi.note(channel: ch, note: note, on: false, destination: dest)
+                let c = UInt8(max(1, min(16, ch)) - 1)
+                _ = self.midi.send([0xB0 | c, 123, 0], destination: dest)
+            }
+        }
+        addLog("PANIC : buzzer désarmé, " + (parts.isEmpty ? "aucune sortie cochée" : parts.joined(separator: ", ")))
     }
 
     func sendTest() {

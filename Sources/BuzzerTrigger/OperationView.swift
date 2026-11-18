@@ -27,6 +27,15 @@ struct OperationView: View {
                         .foregroundColor(.secondary)
                 }
             }
+            Button(action: { e.panic() }) {
+                Text("PANIC")
+                    .font(.system(size: 34, weight: .heavy))
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity, minHeight: 70)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Color.red))
+            }
+            .buttonStyle(.plain)
+            .help("Désarme le buzzer et envoie la note panic à QLab, MA et au laser")
             LevelMeter(level: e.level, threshold: e.threshold, idle: e.idleMax, press: e.pressAvg)
                 .frame(height: 34)
             HStack {
@@ -164,6 +173,7 @@ struct MIDISettings: View {
             }
             Stepper(value: $e.laserChannel, in: 1...16) { Text("  canal \(e.laserChannel)") }
             Stepper(value: $e.laserNote, in: 0...127) { Text("  note \(e.laserNote)") }
+            Stepper(value: $e.panicNote, in: 0...127) { Text("Note PANIC : \(e.panicNote)") }
             Button("Envoyer un test MIDI") { e.sendTest() }
         }
     }

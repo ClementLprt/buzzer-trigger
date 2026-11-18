@@ -49,6 +49,7 @@ struct WiringView: View {
                     Bullet("Carte son toujours sur le même port USB. Si elle a été débranchée : « Rafraîchir les périphériques » puis Démarrer.")
                     Bullet("Le verrou doit durer au moins la séquence la plus longue.")
                     Bullet("Plan B : « Déclencher à la main » ici, ou un Go direct dans QLab et sur la MA.")
+                    Bullet("PANIC : désarme le buzzer et envoie la note panic (127 par défaut) sur le canal de chaque sortie cochée, plus un All Notes Off. À mapper : QLab → Panic / Stop all, MA → Off ou blackout, QuickShow → cue blackout.")
                 }
                 TutoSection(title: "Installer sur un autre Mac") {
                     Para("Copie « Buzzer Trigger.app » (ou le zip) dans Applications. Au premier lancement : clic droit > Ouvrir. Si macOS bloque quand même : Réglages Système > Confidentialité et sécurité > « Ouvrir quand même ». Les réglages sont gardés par Mac.")
