@@ -2,9 +2,9 @@
 import PackageDescription
 
 let package = Package(
-    name: "BuzzerTrigger",
+    name: "CueStation",
     platforms: [.macOS(.v13)],
     targets: [
-        .executableTarget(name: "BuzzerTrigger", path: "Sources/BuzzerTrigger")
+        .executableTarget(name: "CueStation", path: "Sources/CueStation")
     ]
 )

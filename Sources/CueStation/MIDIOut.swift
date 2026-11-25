@@ -9,8 +9,8 @@ struct MIDIDestination: Identifiable, Hashable {
 /// Sortie MIDI : soit un port virtuel "Buzzer Trigger" que QLab et grandMA3 voient
 /// directement comme une entrée, soit une destination existante (bus IAC...).
 final class MIDIOut {
-    static let virtualName = "Buzzer Trigger"
-    /// Un seul port virtuel pour toute l'appli (buzzer et marqueurs des pistes).
+    static let virtualName = "Cue Station"
+    /// Un seul port virtuel pour toute l'appli.
     static let shared = MIDIOut()
     private var client = MIDIClientRef()
     private var port = MIDIPortRef()

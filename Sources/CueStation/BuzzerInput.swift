@@ -3,10 +3,11 @@ import AudioToolbox
 import CoreAudio
 import Foundation
 
-final class TriggerEngine: ObservableObject {
+/// Entrée buzzer : un signal part de la carte son, revient par le contact du buzzer,
+/// et chaque appui lance le cue choisi (Réglages > Buzzer).
+final class BuzzerInput: ObservableObject {
     // MARK: état affiché
     @Published var devices: [AudioDevice] = []
-    @Published var midiDestinations: [MIDIDestination] = []
     @Published var running = false
     @Published var armed = true
     @Published var locked = false
@@ -15,7 +16,6 @@ final class TriggerEngine: ObservableObject {
     @Published var calibrating: String? = nil
     @Published var idleMax: Double? = nil
     @Published var pressAvg: Double? = nil
-    @Published var log: [String] = []
     @Published var lastTrigger: Date? = nil
 
     // MARK: réglages (sauvegardés)
@@ -31,18 +31,6 @@ final class TriggerEngine: ObservableObject {
     @Published var holdMs: Double = 40 { didSet { save(); rtHold = holdMs / 1000 } }
     @Published var lockSeconds: Double = 60 { didSet { save() } }
     @Published var invert: Bool = false { didSet { save(); rtInvert = invert } }
-    @Published var midiDestination: Int32 = 0 { didSet { save() } }
-    @Published var qlabOn = true { didSet { save() } }
-    @Published var qlabChannel = 1 { didSet { save() } }
-    @Published var qlabNote = 60 { didSet { save() } }
-    @Published var maOn = true { didSet { save() } }
-    @Published var maChannel = 2 { didSet { save() } }
-    @Published var maNote = 60 { didSet { save() } }
-    @Published var laserOn = false { didSet { save() } }
-    @Published var laserChannel = 3 { didSet { save() } }
-    @Published var laserNote = 60 { didSet { save() } }
-    @Published var laserDestination: Int32 = 0 { didSet { save() } }
-    @Published var panicNote = 127 { didSet { save() } }
 
     // MARK: copies lues par les threads audio
     private var rtOutCh = 2
@@ -65,16 +53,18 @@ final class TriggerEngine: ObservableObject {
     private var lockTimer: Timer?
     private var calibValues: [Double] = []
     private var activity: NSObjectProtocol?
-    private let midi = MIDIOut.shared
-    /// Diffusion son intégrée (son du buzzer, ducking des zones).
-    weak var show: ShowController?
+    /// Le show : cue lancé par le buzzer, journal commun.
+    weak var show: ShowController? {
+        didSet { for l in early.reversed() { show?.addLog(l) }; early = [] }
+    }
+    private var early: [String] = []
     private var loading = true
 
     init() {
         load()
         loading = false
         refreshDevices()
-        if !midi.ready { addLog("Erreur : impossible de créer le port MIDI virtuel") }
+        if !MIDIOut.shared.ready { addLog("Erreur : impossible de créer le port MIDI virtuel") }
         watchDeviceChanges()
     }
 
@@ -105,10 +95,6 @@ final class TriggerEngine: ObservableObject {
             "outUID": outUID, "outChannel": outChannel, "inUID": inUID, "inChannel": inChannel,
             "toneHz": toneHz, "toneDb": toneDb, "toneOn": toneOn, "threshold": threshold,
             "hysteresis": hysteresis, "holdMs": holdMs, "lockSeconds": lockSeconds, "invert": invert,
-            "midiDestination": Int(midiDestination), "qlabOn": qlabOn, "qlabChannel": qlabChannel,
-            "qlabNote": qlabNote, "maOn": maOn, "maChannel": maChannel, "maNote": maNote,
-            "laserOn": laserOn, "laserChannel": laserChannel, "laserNote": laserNote,
-            "laserDestination": Int(laserDestination), "panicNote": panicNote,
         ]
         defaults.set(d, forKey: "settings.v1")
     }
@@ -127,32 +113,16 @@ final class TriggerEngine: ObservableObject {
         holdMs = d["holdMs"] as? Double ?? 40
         lockSeconds = d["lockSeconds"] as? Double ?? 60
         invert = d["invert"] as? Bool ?? false
-        midiDestination = Int32(d["midiDestination"] as? Int ?? 0)
-        qlabOn = d["qlabOn"] as? Bool ?? true
-        qlabChannel = d["qlabChannel"] as? Int ?? 1
-        qlabNote = d["qlabNote"] as? Int ?? 60
-        maOn = d["maOn"] as? Bool ?? true
-        maChannel = d["maChannel"] as? Int ?? 2
-        maNote = d["maNote"] as? Int ?? 60
-        laserOn = d["laserOn"] as? Bool ?? false
-        laserChannel = d["laserChannel"] as? Int ?? 3
-        laserNote = d["laserNote"] as? Int ?? 60
-        laserDestination = Int32(d["laserDestination"] as? Int ?? 0)
-        panicNote = d["panicNote"] as? Int ?? 127
     }
 
     // MARK: journal
     func addLog(_ text: String) {
-        let f = DateFormatter()
-        f.dateFormat = "HH:mm:ss"
-        log.insert("\(f.string(from: Date()))  \(text)", at: 0)
-        if log.count > 300 { log.removeLast(log.count - 300) }
+        if let sh = show { sh.addLog("Buzzer : " + text) } else { early.insert("Buzzer : " + text, at: 0) }
     }
 
     // MARK: périphériques
     func refreshDevices() {
         devices = AudioDevices.all()
-        midiDestinations = MIDIOut.destinations()
         addLog("Cartes son vues : " + devices.map { "\($0.name) (\($0.inputChannels) ent./\($0.outputChannels) sort.)" }.joined(separator: ", "))
         if outUID.isEmpty, let d = devices.first(where: { $0.outputChannels > 2 }) ?? devices.first(where: { $0.outputChannels > 0 }) { outUID = d.uid }
         if inUID.isEmpty, let d = devices.first(where: { $0.uid == outUID && $0.inputChannels > 0 }) ?? devices.first(where: { $0.inputChannels > 0 }) { inUID = d.uid }
@@ -167,12 +137,12 @@ final class TriggerEngine: ObservableObject {
         case .notDetermined:
             AVCaptureDevice.requestAccess(for: .audio) { granted in
                 DispatchQueue.main.async {
-                    if granted { self.start() } else { self.addLog("Accès micro refusé : Réglages Système > Confidentialité et sécurité > Micro > Buzzer Trigger") }
+                    if granted { self.start() } else { self.addLog("Accès micro refusé : Réglages Système > Confidentialité et sécurité > Micro > Cue Station") }
                 }
             }
             return
         case .denied, .restricted:
-            addLog("Accès micro refusé : Réglages Système > Confidentialité et sécurité > Micro > Buzzer Trigger")
+            addLog("Accès micro refusé : Réglages Système > Confidentialité et sécurité > Micro > Cue Station")
             return
         default: break
         }
@@ -187,7 +157,7 @@ final class TriggerEngine: ObservableObject {
             if activity == nil {
                 activity = ProcessInfo.processInfo.beginActivity(
                     options: [.userInitiated, .idleSystemSleepDisabled, .latencyCritical],
-                    reason: "Buzzer Trigger en exploitation")
+                    reason: "Cue Station : buzzer en écoute")
             }
             addLog("Démarré : sortie \(out.name) canal \(outChannel), entrée \(inp.name) canal \(inChannel)")
         } catch {
@@ -350,65 +320,22 @@ final class TriggerEngine: ObservableObject {
     func trigger(source: String) {
         rtArmed = false
         guard armed, !locked else {
-            addLog("Appui ignoré (\(locked ? "verrou en cours" : "désarmé"))")
+            addLog("appui ignoré (\(locked ? "verrou en cours" : "désarmé"))")
             return
         }
-        var parts = sendAll()
-        if let son = show?.buzzerFired() { parts.insert(son, at: 0) }
         lastTrigger = Date()
-        addLog("DÉCLENCHÉ (\(source)) : " + (parts.isEmpty ? "aucune sortie cochée" : parts.joined(separator: ", ")))
+        if let sh = show, sh.show.buzzerCueID != nil {
+            sh.go(sh.show.buzzerCueID, from: source)
+        } else {
+            addLog("appui détecté, mais aucun cue n'est associé au buzzer")
+        }
         beginLock()
     }
 
-    /// Une sortie MIDI : (libellé, canal, note, destination).
-    private func targets() -> [(String, Int, Int, Int32)] {
-        var t: [(String, Int, Int, Int32)] = []
-        if qlabOn { t.append(("QLab", qlabChannel, qlabNote, midiDestination)) }
-        if maOn { t.append(("MA", maChannel, maNote, midiDestination)) }
-        if laserOn { t.append(("Laser", laserChannel, laserNote, laserDestination)) }
-        return t
-    }
-
-    /// Envoie Note On à chaque sortie cochée, puis Note Off 150 ms après.
-    @discardableResult
-    private func sendAll() -> [String] {
-        let t = targets()
-        var parts: [String] = []
-        for (label, ch, n, dest) in t {
-            let ok = midi.note(channel: ch, note: n, on: true, destination: dest)
-            parts.append("\(label) can.\(ch) note \(n)\(ok ? "" : " ÉCHEC")")
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            for (_, ch, n, dest) in t { _ = self.midi.note(channel: ch, note: n, on: false, destination: dest) }
-        }
-        return parts
-    }
-
-    /// PANIC : désarme, coupe le verrou, envoie la note panic + All Notes Off à chaque sortie cochée.
+    /// Appelé par le PANIC général.
     func panic() {
-        setArmed(false)
+        if armed { setArmed(false) }
         endLock(rearm: false)
-        show?.panicBuzzer()
-        let t = targets()
-        let note = panicNote
-        var parts: [String] = []
-        for (label, ch, _, dest) in t {
-            let ok = midi.note(channel: ch, note: note, on: true, destination: dest)
-            parts.append("\(label) can.\(ch) note \(note)\(ok ? "" : " ÉCHEC")")
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            for (_, ch, _, dest) in t {
-                _ = self.midi.note(channel: ch, note: note, on: false, destination: dest)
-                let c = UInt8(max(1, min(16, ch)) - 1)
-                _ = self.midi.send([0xB0 | c, 123, 0], destination: dest)
-            }
-        }
-        addLog("PANIC : buzzer désarmé, son du buzzer coupé, " + (parts.isEmpty ? "aucune sortie cochée" : parts.joined(separator: ", ")))
-    }
-
-    func sendTest() {
-        let parts = sendAll()
-        addLog("Test MIDI envoyé (sans verrou) : " + (parts.isEmpty ? "aucune sortie cochée" : parts.joined(separator: ", ")))
     }
 
     private func beginLock() {

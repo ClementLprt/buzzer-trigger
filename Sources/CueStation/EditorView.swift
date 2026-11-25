@@ -37,7 +37,7 @@ struct EditorView: View {
                 } else {
                     VStack(spacing: 10) {
                         Text("Choisis un son à gauche, ou ajoute des fichiers audio.").foregroundColor(.secondary)
-                        Text("Chaque son a sa zone de sortie, peut tourner en boucle et porter des marqueurs MIDI.")
+                        Text("Chaque son a sa zone de sortie, peut tourner en boucle et porter des repères qui lancent des cues.")
                             .font(.caption).foregroundColor(.secondary)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -50,15 +50,13 @@ struct EditorView: View {
     private func subtitle(_ t: Track) -> String {
         var parts = [s.zone(t.zoneID)?.name ?? "sans zone", timeString(t.duration)]
         if t.loop { parts.append("boucle") }
-        if !t.markers.isEmpty { parts.append("\(t.markers.count) marqueur\(t.markers.count > 1 ? "s" : "")") }
-        if s.show.buzzerTrackID == t.id { parts.append("BUZZER") }
+        if !t.markers.isEmpty { parts.append("\(t.markers.count) repère\(t.markers.count > 1 ? "s" : "")") }
         return parts.joined(separator: " · ")
     }
 }
 
 struct TrackEditor: View {
     @EnvironmentObject var s: ShowController
-    @EnvironmentObject var e: TriggerEngine
     let trackID: UUID
     @State private var cursor: Double = 0
     @State private var zoom: Double = 1
@@ -75,16 +73,13 @@ struct TrackEditor: View {
                 }.frame(width: 240)
                 Toggle("Boucle", isOn: track.loop)
                 Toggle("Au démarrage", isOn: track.autoplay)
-                    .help("Lancée par « Lancer les boucles » dans l'onglet Diffusion")
+                    .help("Lancé par « Lancer les boucles » dans l'onglet Diffusion")
             }
             HStack(spacing: 10) {
                 Text("Volume")
                 Slider(value: track.gainDb, in: -40...6).frame(width: 220)
                 Text(String(format: "%+.0f dB", t.gainDb)).monospacedDigit().frame(width: 60, alignment: .leading)
                 Spacer()
-                Button(s.show.buzzerTrackID == trackID ? "Son du buzzer (oui)" : "En faire le son du buzzer") {
-                    s.show.buzzerTrackID = (s.show.buzzerTrackID == trackID) ? nil : trackID
-                }
             }
             Text(t.path).font(.caption).foregroundColor(.secondary).lineLimit(1).truncationMode(.middle)
 
@@ -103,8 +98,8 @@ struct TrackEditor: View {
                 Button("Depuis le début") { s.play(trackID, from: 0) }
                 Button("Stop") { s.stop(trackID, fade: 0.1) }
                 Divider().frame(height: 18)
-                Button("Marqueur au curseur") { s.addMarker(trackID, at: cursor) }
-                Button("Marqueur à la lecture (⇧⌘M)") {
+                Button("Repère au curseur") { s.addMarker(trackID, at: cursor) }
+                Button("Repère à la lecture (⇧⌘M)") {
                     if let p = s.positions[trackID] { s.addMarker(trackID, at: p) }
                 }
                 .keyboardShortcut("m", modifiers: [.command, .shift])
@@ -119,9 +114,9 @@ struct TrackEditor: View {
                 Text("Durée \(timeString(t.duration))").monospacedDigit().foregroundColor(.secondary)
             }
 
-            GroupBox("Marqueurs MIDI (envoyés à chaque passage de la lecture)") {
+            GroupBox("Repères : chaque repère lance un cue quand la lecture passe dessus (à chaque boucle)") {
                 if t.markers.isEmpty {
-                    Text("Clique dans la forme d'onde pour placer le curseur, puis « Marqueur au curseur ». Pendant la lecture, ⇧⌘M pose un marqueur au vol. Glisse un marqueur orange pour le déplacer.")
+                    Text("Clique dans la forme d'onde pour placer le curseur, puis « Repère au curseur ». Pendant la lecture, ⇧⌘M pose un repère au vol. Glisse un repère orange pour le déplacer.")
                         .font(.caption).foregroundColor(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(6)
@@ -129,8 +124,8 @@ struct TrackEditor: View {
                     ScrollView {
                         VStack(spacing: 4) {
                             ForEach(t.markers.sorted { $0.time < $1.time }) { m in
-                                MarkerRow(marker: s.markerBinding(trackID, m.id), destinations: e.midiDestinations,
-                                          test: { s.testMarker(m) },
+                                MarkerRow(marker: s.markerBinding(trackID, m.id),
+                                          test: { s.go(m.cueID, from: "test repère") },
                                           go: { cursor = m.time },
                                           delete: {
                                               if let i = s.show.tracks.firstIndex(where: { $0.id == trackID }) {
@@ -148,8 +143,8 @@ struct TrackEditor: View {
 }
 
 struct MarkerRow: View {
+    @EnvironmentObject var s: ShowController
     @Binding var marker: Marker
-    let destinations: [MIDIDestination]
     let test: () -> Void
     let go: () -> Void
     let delete: () -> Void
@@ -161,21 +156,20 @@ struct MarkerRow: View {
                 .help("Position en secondes")
             Text(timeString(marker.time)).monospacedDigit().foregroundColor(.secondary).frame(width: 80, alignment: .leading)
             TextField("Nom", text: $marker.label).frame(width: 150)
-            Picker("", selection: $marker.destination) {
-                Text("Port virtuel").tag(Int32(0))
-                ForEach(destinations) { d in Text(d.name).tag(d.id) }
-            }.frame(width: 190)
-            Stepper(value: $marker.channel, in: 1...16) { Text("can. \(marker.channel)").monospacedDigit() }
-            Stepper(value: $marker.note, in: 0...127) { Text("note \(marker.note)").monospacedDigit() }
-            Button("Tester", action: test)
+            Text("lance")
+            Picker("", selection: $marker.cueID) {
+                Text("Aucun cue").tag(UUID?.none)
+                ForEach(s.show.cues) { c in Text(c.name).tag(UUID?.some(c.id)) }
+            }.frame(width: 220)
+            Button("Tester", action: test).disabled(marker.cueID == nil)
             Button("Aller", action: go)
-            Button(action: delete) { Image(systemName: "trash") }.help("Supprimer le marqueur")
+            Button(action: delete) { Image(systemName: "trash") }.help("Supprimer le repère")
             Spacer(minLength: 0)
         }
     }
 }
 
-/// Forme d'onde avec curseur (bleu), tête de lecture (vert) et marqueurs déplaçables (orange).
+/// Forme d'onde avec curseur (bleu), tête de lecture (vert) et repères déplaçables (orange).
 struct WaveformArea: View {
     let peaks: [Float]
     let duration: Double
@@ -205,7 +199,7 @@ struct WaveformArea: View {
                     }
                     ForEach(markers) { m in
                         VStack(alignment: .leading, spacing: 0) {
-                            Text(m.label.isEmpty ? "n\(m.note)" : m.label)
+                            Text(m.label.isEmpty ? "repère" : m.label)
                                 .font(.caption2).foregroundColor(.black)
                                 .padding(.horizontal, 3).padding(.vertical, 1)
                                 .background(Color.orange)
@@ -216,7 +210,7 @@ struct WaveformArea: View {
                         .gesture(DragGesture(minimumDistance: 1, coordinateSpace: .named("wave")).onChanged { v in
                             moveMarker(m.id, time(v.location.x, width))
                         })
-                        .help("\(m.label) : can.\(m.channel) note \(m.note), \(timeString(m.time))")
+                        .help("\(m.label), \(timeString(m.time))")
                     }
                 }
                 .frame(width: width, height: h, alignment: .topLeading)

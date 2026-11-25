@@ -86,9 +86,7 @@ final class ZoneState {
 
 struct MarkerRT {
     let frame: Int        // position dans un passage de la piste, en échantillons de sortie
-    let channel: Int
-    let note: Int
-    let destination: Int32
+    let cueID: UUID
     let label: String
 }
 
@@ -100,7 +98,7 @@ final class Voice {
     let ring: Ring
     let sampleRate: Double
     let loop: Bool
-    let isBuzzer: Bool
+    let ducks: Bool               // baisse les zones cochées tant qu'elle joue
     let iterationFrames: Int     // longueur d'un passage en échantillons de sortie
     let startFrame: Int          // décalage de départ (lecture depuis le curseur)
 
@@ -125,14 +123,14 @@ final class Voice {
     var markers: [MarkerRT]
     var lastAbs: Int
 
-    init(trackID: UUID, trackName: String, zone: ZoneState, sampleRate: Double, loop: Bool, isBuzzer: Bool,
+    init(trackID: UUID, trackName: String, zone: ZoneState, sampleRate: Double, loop: Bool, ducks: Bool,
          fileFrames: Int64, fileRate: Double, startSeconds: Double, gain: Float, markers: [MarkerRT]) {
         self.trackID = trackID
         self.trackName = trackName
         self.zone = zone
         self.sampleRate = sampleRate
         self.loop = loop
-        self.isBuzzer = isBuzzer
+        self.ducks = ducks
         self.gain = gain
         self.markers = markers
         ring = Ring(frames: Int(sampleRate * 3))
@@ -252,7 +250,7 @@ final class SoundEngine {
     private var rtVoices: [Voice] = []
     private var zones: [UUID: ZoneState] = [:]
 
-    let markerQueue = DispatchQueue(label: "fr.ohmylord.buzzertrigger.markers", qos: .userInteractive)
+    let markerQueue = DispatchQueue(label: "fr.ohmylord.cuestation.markers", qos: .userInteractive)
     private var markerTimer: DispatchSourceTimer?
     /// Appelé sur la file des marqueurs quand un marqueur part.
     var onMarker: ((Voice, MarkerRT) -> Void)?
@@ -357,7 +355,7 @@ final class SoundEngine {
             let got = v.ring.read(left: v.scratchL, right: v.scratchR, count: count)
             let z = v.zone
             var target = v.fadeTarget * v.gain * z.gain * (z.muted ? 0 : 1)
-            if !v.isBuzzer { target *= z.duck }
+            if !v.ducks { target *= z.duck }
             if v.current < 0 { v.current = target }
             let start = v.current
             let ramp = max(0.005, v.fadeTarget == 0 ? v.rampSeconds : 0.08)
@@ -429,10 +427,6 @@ final class SoundEngine {
     }
 
     private func fire(_ m: MarkerRT, voice: Voice) {
-        _ = MIDIOut.shared.note(channel: m.channel, note: m.note, on: true, destination: m.destination)
-        markerQueue.asyncAfter(deadline: .now() + 0.15) {
-            _ = MIDIOut.shared.note(channel: m.channel, note: m.note, on: false, destination: m.destination)
-        }
         onMarker?(voice, m)
     }
 

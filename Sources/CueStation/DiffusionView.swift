@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Onglet « Diffusion » : carte de sortie (CQ12T), zones, lancement des boucles, son du buzzer.
+/// Onglet « Diffusion » : carte de sortie (CQ12T), zones, lancement des boucles.
 struct DiffusionView: View {
     @EnvironmentObject var s: ShowController
 
@@ -14,8 +14,8 @@ struct DiffusionView: View {
                         .foregroundColor(.secondary)
                 }
                 Spacer()
-                if s.buzzerPlaying {
-                    Text("SON DU BUZZER").font(.headline).foregroundColor(.white)
+                if s.ducking {
+                    Text("ZONES BAISSÉES").font(.headline).foregroundColor(.white)
                         .padding(.horizontal, 10).padding(.vertical, 4)
                         .background(RoundedRectangle(cornerRadius: 6).fill(Color.orange))
                 }
@@ -38,22 +38,11 @@ struct DiffusionView: View {
                 }
                 Divider().frame(height: 20)
                 Button("Lancer les boucles") { s.startAutoplay() }
-                    .help("Lance toutes les pistes cochées « Au démarrage » dans l'éditeur")
+                    .help("Lance tous les sons cochés « Au démarrage » (onglet Sons)")
                 Button("Tout couper (fondu 2 s)") { s.stopAll(fade: 2) }
                 Spacer()
                 Button("Ouvrir un show…") { s.openShow() }
                 Button("Enregistrer sous…") { s.saveAs() }
-            }
-
-            GroupBox("Buzzer") {
-                HStack(spacing: 12) {
-                    Picker("Son lancé par le buzzer", selection: $s.show.buzzerTrackID) {
-                        Text("Aucun (QLab externe)").tag(UUID?.none)
-                        ForEach(s.show.tracks) { t in Text(t.name).tag(UUID?.some(t.id)) }
-                    }.frame(width: 380)
-                    Text("Pendant ce son, les zones cochées « Baisser » descendent du nombre de dB réglé, puis remontent à la fin. Le son est joué une fois (pas en boucle), ses marqueurs MIDI partent aussi.")
-                        .font(.caption).foregroundColor(.secondary)
-                }.padding(4)
             }
 
             HStack {
@@ -109,14 +98,15 @@ struct ZoneCard: View {
                     Text(String(format: "%+.0f dB", z.gainDb)).monospacedDigit().frame(width: 56, alignment: .leading)
                 }
                 HStack {
-                    Toggle("Baisser pendant le buzzer", isOn: zb.duckOnBuzzer)
+                    Toggle("Se baisse", isOn: zb.duckOnBuzzer)
+                        .help("Descend quand un cue lance un son avec « Baisser les autres zones »")
                     Stepper(value: zb.duckDb, in: -60...0, step: 3) { Text(String(format: "%.0f dB", z.duckDb)).monospacedDigit() }
                         .disabled(!z.duckOnBuzzer)
                 }
                 ZoneMeter(db: s.levels[zoneID] ?? -120).frame(height: 10)
                 let tracks = s.show.tracks.filter { $0.zoneID == zoneID }
                 if tracks.isEmpty {
-                    Text("Aucun son dans cette zone : choisis la zone d'un son dans l'éditeur.")
+                    Text("Aucun son dans cette zone : choisis la zone d'un son dans l'onglet Sons.")
                         .font(.caption).foregroundColor(.secondary)
                 } else {
                     ForEach(tracks) { t in
@@ -129,7 +119,6 @@ struct ZoneCard: View {
                             }
                             Text(t.name).lineLimit(1)
                             if t.loop { Image(systemName: "repeat").foregroundColor(.secondary) }
-                            if s.show.buzzerTrackID == t.id { Text("buzzer").font(.caption).foregroundColor(.orange) }
                             Spacer()
                             if let p = pos {
                                 ProgressView(value: min(1, p / max(0.001, t.duration))).frame(width: 90)
