@@ -35,7 +35,7 @@ struct OperationView: View {
                     .background(RoundedRectangle(cornerRadius: 12).fill(Color.red))
             }
             .buttonStyle(.plain)
-            .help("Désarme le buzzer et envoie la note panic à QLab, MA et au laser")
+            .help("Désarme le buzzer, coupe le son du buzzer et envoie la note panic à MA et au laser")
             LevelMeter(level: e.level, threshold: e.threshold, idle: e.idleMax, press: e.pressAvg)
                 .frame(height: 34)
             HStack {
@@ -54,7 +54,7 @@ struct OperationView: View {
             HStack(alignment: .top, spacing: 12) {
                 GroupBox("1. Carte son") { SoundCardSettings().padding(6) }
                 GroupBox("2. Détection") { DetectionSettings().padding(6) }
-                GroupBox("3. MIDI") { MIDISettings().padding(6) }
+                GroupBox("3. Son et MIDI") { MIDISettings().padding(6) }
             }
 
             GroupBox("Journal") {
@@ -153,14 +153,20 @@ struct DetectionSettings: View {
 
 struct MIDISettings: View {
     @EnvironmentObject var e: TriggerEngine
+    @EnvironmentObject var s: ShowController
 
     var body: some View {
         Form {
+            Picker("Son intégré", selection: $s.show.buzzerTrackID) {
+                Text("Aucun").tag(UUID?.none)
+                ForEach(s.show.tracks) { t in Text(t.name).tag(UUID?.some(t.id)) }
+            }
+            .help("Son joué par l'appli à l'appui (onglet Diffusion pour la zone et le ducking)")
             Picker("Sortie MIDI (QLab, MA)", selection: $e.midiDestination) {
                 Text("Port virtuel « Buzzer Trigger »").tag(Int32(0))
                 ForEach(e.midiDestinations) { d in Text(d.name).tag(d.id) }
             }
-            Toggle("QLab", isOn: $e.qlabOn)
+            Toggle("QLab (externe, inutile si le son est dans l'appli)", isOn: $e.qlabOn)
             Stepper(value: $e.qlabChannel, in: 1...16) { Text("  canal \(e.qlabChannel)") }
             Stepper(value: $e.qlabNote, in: 0...127) { Text("  note \(e.qlabNote)") }
             Toggle("grandMA3", isOn: $e.maOn)

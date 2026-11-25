@@ -8,6 +8,20 @@ Ce que ça change par rapport à la version Chrome :
 - le Mac ne se met pas en veille tant que l'appli est démarrée ;
 - les réglages sont gardés.
 
+## Version 5 : diffusion son intégrée
+
+Téléchargement : https://github.com/ClementLprt/buzzer-trigger/releases/download/latest/Buzzer-Trigger.dmg
+
+Quatre onglets :
+- **Buzzer** : détection, verrou, PANIC, notes MIDI vers grandMA3 et QuickShow, choix du son intégré.
+- **Diffusion** : carte de sortie (CQ12T en USB), zones (paire de sorties ou mono, volume, muet, vu-mètre, baisse pendant le buzzer), lancement des boucles, tout couper, ouvrir/enregistrer un show.
+- **Éditeur de sons** : import de fichiers, zone, boucle, volume, forme d'onde avec zoom, lecture depuis un curseur, marqueurs MIDI déplaçables (nom, canal, note, sortie MIDI), envoyés à chaque passage de la lecture.
+- **Tuto câblage**.
+
+Appui sur le buzzer : le son du buzzer part une fois dans sa zone (avec ses marqueurs), les notes MA et laser partent, les zones cochées baissent puis remontent à la fin du son.
+
+Le show est sauvegardé tout seul dans `~/Library/Application Support/Buzzer Trigger/show.json`. Les sons restent à leur place sur le disque.
+
 ## Compiler l'appli une fois (5 minutes, sur ton Mac)
 
 1. Ouvre le Terminal et installe les outils Apple (gratuit, une seule fois) :

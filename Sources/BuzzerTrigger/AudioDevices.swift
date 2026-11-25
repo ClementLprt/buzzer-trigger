@@ -1,3 +1,4 @@
+import AVFoundation
 import CoreAudio
 import Foundation
 
@@ -10,6 +11,15 @@ struct AudioDevice: Identifiable, Hashable {
 }
 
 enum AudioDevices {
+    /// Format non entrelacé à N canaux (au-delà de 2 canaux il faut un agencement « discret »).
+    static func format(sampleRate: Double, channels: AVAudioChannelCount) -> AVAudioFormat? {
+        if channels <= 2 {
+            return AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: sampleRate, channels: channels, interleaved: false)
+        }
+        guard let layout = AVAudioChannelLayout(layoutTag: kAudioChannelLayoutTag_DiscreteInOrder | UInt32(channels)) else { return nil }
+        return AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: sampleRate, interleaved: false, channelLayout: layout)
+    }
+
     static func all() -> [AudioDevice] {
         var addr = AudioObjectPropertyAddress(
             mSelector: kAudioHardwarePropertyDevices,

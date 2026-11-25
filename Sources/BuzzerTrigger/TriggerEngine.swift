@@ -65,7 +65,9 @@ final class TriggerEngine: ObservableObject {
     private var lockTimer: Timer?
     private var calibValues: [Double] = []
     private var activity: NSObjectProtocol?
-    private let midi = MIDIOut()
+    private let midi = MIDIOut.shared
+    /// Diffusion son intégrée (son du buzzer, ducking des zones).
+    weak var show: ShowController?
     private var loading = true
 
     init() {
@@ -351,9 +353,10 @@ final class TriggerEngine: ObservableObject {
             addLog("Appui ignoré (\(locked ? "verrou en cours" : "désarmé"))")
             return
         }
-        let parts = sendAll()
+        var parts = sendAll()
+        if let son = show?.buzzerFired() { parts.insert(son, at: 0) }
         lastTrigger = Date()
-        addLog("DÉCLENCHÉ (\(source)) : " + (parts.isEmpty ? "aucune sortie MIDI cochée" : parts.joined(separator: ", ")))
+        addLog("DÉCLENCHÉ (\(source)) : " + (parts.isEmpty ? "aucune sortie cochée" : parts.joined(separator: ", ")))
         beginLock()
     }
 
@@ -385,6 +388,7 @@ final class TriggerEngine: ObservableObject {
     func panic() {
         setArmed(false)
         endLock(rearm: false)
+        show?.panicBuzzer()
         let t = targets()
         let note = panicNote
         var parts: [String] = []
@@ -399,7 +403,7 @@ final class TriggerEngine: ObservableObject {
                 _ = self.midi.send([0xB0 | c, 123, 0], destination: dest)
             }
         }
-        addLog("PANIC : buzzer désarmé, " + (parts.isEmpty ? "aucune sortie cochée" : parts.joined(separator: ", ")))
+        addLog("PANIC : buzzer désarmé, son du buzzer coupé, " + (parts.isEmpty ? "aucune sortie cochée" : parts.joined(separator: ", ")))
     }
 
     func sendTest() {

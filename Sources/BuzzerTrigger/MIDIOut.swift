@@ -10,6 +10,8 @@ struct MIDIDestination: Identifiable, Hashable {
 /// directement comme une entrée, soit une destination existante (bus IAC...).
 final class MIDIOut {
     static let virtualName = "Buzzer Trigger"
+    /// Un seul port virtuel pour toute l'appli (buzzer et marqueurs des pistes).
+    static let shared = MIDIOut()
     private var client = MIDIClientRef()
     private var port = MIDIPortRef()
     private var source = MIDIEndpointRef()

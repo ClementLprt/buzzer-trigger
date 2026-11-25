@@ -51,6 +51,17 @@ struct WiringView: View {
                     Bullet("Plan B : « Déclencher à la main » ici, ou un Go direct dans QLab et sur la MA.")
                     Bullet("PANIC : désarme le buzzer et envoie la note panic (127 par défaut) sur le canal de chaque sortie cochée, plus un All Notes Off. À mapper : QLab → Panic / Stop all, MA → Off ou blackout, QuickShow → cue blackout.")
                 }
+                TutoSection(title: "9. Diffusion son sans QLab (CQ12T)") {
+                    Para("L'appli lit elle-même les sons : le son du buzzer et les boucles de chaque zone. QLab n'est plus nécessaire (décoche-le dans Son et MIDI).")
+                    Bullet("Câble USB du Mac à la CQ12T : elle apparaît comme carte son. Onglet Diffusion : choisis-la dans « Carte de diffusion », puis Démarrer la diffusion.")
+                    Bullet("Sur la CQ12T, mets la source des voies sur USB : la sortie 1 du Mac arrive sur la voie USB 1, etc. Route ensuite chaque voie vers la sortie de la zone.")
+                    Bullet("Une zone = une paire de sorties (G/D) ou une sortie mono. Volume, muet et vu-mètre par zone.")
+                    Bullet("Éditeur de sons : ajoute les fichiers (wav, aiff, mp3, m4a), choisis la zone, coche Boucle et « Au démarrage ». « Lancer les boucles » les démarre toutes.")
+                    Bullet("Marqueurs MIDI : clique dans la forme d'onde, « Marqueur au curseur », puis règle canal, note et sortie (port virtuel pour MA, session réseau pour QuickShow). Ils partent à chaque passage de la boucle.")
+                    Bullet("Son du buzzer : choisis-le dans l'onglet Diffusion. À l'appui il part une fois, ses marqueurs aussi, et les zones cochées « Baisser » descendent puis remontent.")
+                    Bullet("PANIC coupe le son du buzzer et remonte les zones. Les boucles continuent ; « Tout couper » les arrête en fondu.")
+                    Bullet("Le show est gardé tout seul. « Enregistrer sous… » pour en faire une copie (les sons restent à leur place sur le disque : ne les déplace pas).")
+                }
                 TutoSection(title: "Installer sur un autre Mac") {
                     Para("Copie « Buzzer Trigger.app » (ou le zip) dans Applications. Au premier lancement : clic droit > Ouvrir. Si macOS bloque quand même : Réglages Système > Confidentialité et sécurité > « Ouvrir quand même ». Les réglages sont gardés par Mac.")
                 }
